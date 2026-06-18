@@ -756,7 +756,7 @@ export default function Home() {
           <div>
             <h1 className="title">
               <span className="titleEmoji" aria-hidden="true">💀</span>
-              RegretGPT
+              RegretAI
             </h1>
             <p className="subtitle">
               Simulate how a decision feels today, in one month, and in one year.
