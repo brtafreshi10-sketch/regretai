@@ -1,4 +1,4 @@
-fix "use client";
+"use client";
 
 import { useEffect, useMemo, useState } from "react";
 import ResultCard from "@/components/ResultCard";
@@ -396,7 +396,7 @@ export default function Home() {
     setProfiles(list);
   }
 
-  function signup() {
+  async function signup() {
     setError("");
     const email = normalizeEmail(authEmail);
     if (!validateEmail(email)) {
@@ -427,34 +427,50 @@ export default function Home() {
     setEnteredCode("");
     setVerificationError("");
     setVerificationStep(true);
+
     await fetch("/api/send-verification", {
-  method: "POST",
-  headers: {
-    "Content-Type": "application/json",
-  },
-  body: JSON.stringify({
-    email,
-    code,
-  }),
-});
-    if (enteredCode.trim() !== verificationCode) {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        email,
+        code,
+      }),
+    });
+
+    return;
+  }
+
+  async function confirmVerificationCode() {
+    setError("");
+    setVerificationError("");
+
+    if (!verificationCode || enteredCode.trim() !== verificationCode) {
       setVerificationError("Incorrect code. Please try again.");
       return;
     }
 
     const email = normalizeEmail(authEmail);
     const users = getUsers();
+    if (users[email]) {
+      setVerificationError("An account with this email already exists.");
+      return;
+    }
+
     users[email] = {
       password: authPassword,
       createdAt: new Date().toISOString(),
       displayName: authName.trim(),
       isPaid: false,
     };
+
     saveUsers(users);
     refreshProfiles();
     localStorage.setItem("regret-current-user", email);
     setCurrentUserEmail(email);
     setCurrentUserName(authName.trim());
+    setCurrentUserPaid(false);
     setVerificationStep(false);
     setVerificationCode("");
     setEnteredCode("");
@@ -571,72 +587,65 @@ export default function Home() {
 
   useEffect(() => {
     if (!hydrated) return;
+    if (typeof window === "undefined") return;
 
-    import { useEffect } from "react";
+    const params = new URLSearchParams(window.location.search);
+    const sessionId = params.get("session_id");
 
-useEffect(() => {
-  if (typeof window === "undefined") return;
+    if (!sessionId || !currentUserEmail) return;
 
-  const params = new URLSearchParams(window.location.search);
-  const sessionId = params.get("session_id");
-
-  if (!sessionId || !currentUserEmail) return;
-
-  const verifyCheckout = async () => {
-    try {
-      const response = await fetch(
-        `/api/checkout/verify?session_id=${encodeURIComponent(sessionId)}`
-      );
-
-      const data = await response.json();
-
-      if (!response.ok || !data.success) {
-        setPaymentError(
-          data?.error || "Unable to verify payment session."
+    const verifyCheckout = async () => {
+      try {
+        const response = await fetch(
+          `/api/checkout/verify?session_id=${encodeURIComponent(sessionId)}`
         );
-        return;
-      }
 
-      if (data.customer_email !== currentUserEmail) {
+        const data = await response.json();
+
+        if (!response.ok || !data.success) {
+          setPaymentError(
+            data?.error || "Unable to verify payment session."
+          );
+          return;
+        }
+
+        if (data.customer_email !== currentUserEmail) {
+          setPaymentError(
+            "The checked-out account does not match the current user."
+          );
+          return;
+        }
+
+        const users = getUsers();
+        const user = users[currentUserEmail];
+
+        if (!user) {
+          setPaymentError("User not found.");
+          return;
+        }
+
+        users[currentUserEmail] = {
+          ...user,
+          isPaid: true,
+          subscriptionDate: new Date().toISOString(),
+        };
+
+        saveUsers(users);
+
+        setCurrentUserPaid(true);
+        refreshProfiles();
+        setCheckoutMessage("Your Premium subscription is now active.");
+
+        // clean URL
+        window.history.replaceState({}, "", window.location.pathname);
+      } catch (error) {
         setPaymentError(
-          "The checked-out account does not match the current user."
+          error instanceof Error
+            ? error.message
+            : "Unable to verify checkout."
         );
-        return;
       }
-
-      const users = getUsers();
-      const user = users[currentUserEmail];
-
-      if (!user) {
-        setPaymentError("User not found.");
-        return;
-      }
-
-      users[currentUserEmail] = {
-        ...user,
-        isPaid: true,
-        subscriptionDate: new Date().toISOString(),
-      };
-
-      saveUsers(users);
-
-      setCurrentUserPaid(true);
-      refreshProfiles();
-      setCheckoutMessage("Your Premium subscription is now active.");
-
-      // clean URL
-      window.history.replaceState({}, "", window.location.pathname);
-    } catch (error) {
-      setPaymentError(
-        error instanceof Error
-          ? error.message
-          : "Unable to verify checkout."
-      );
-    }
-  };
-
-  verifyCheckout();
-}, [currentUserEmail]);
+    };
 
     verifyCheckout();
   }, [hydrated, currentUserEmail]);
