@@ -887,7 +887,7 @@ export default function Home() {
         <section className="infoCard">
           <h3>How this app works</h3>
           <p>
-            RegretAi uses AI to help you think through outcomes and see what your decision may feel like over time. Use the history tools to compare past ideas and improve your decision process.
+            RegretAI uses AI to help you think through outcomes and see what your decision may feel like over time. Use the history tools to compare past ideas and improve your decision process.
           </p>
         </section>
 
