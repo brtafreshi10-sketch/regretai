@@ -8,7 +8,7 @@ export async function POST(req: Request) {
     const { email, code } = await req.json();
 
     await resend.emails.send({
-      from: "RegretGPT <verify@YOURDOMAIN.com>",
+      from: "RegretGPT <brtafreshi2023@gmail.com>",
       to: email,
       subject: "Verify your RegretGPT account",
       html: `
