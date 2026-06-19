@@ -44,6 +44,17 @@ const CATEGORY_LABELS: Record<Result["category"] | "all", string> = {
 
 const FREE_DAILY_LIMIT = 5;
 
+// Keywords that trigger the violence/harm filter
+const BLOCKED_PATTERNS = [
+  /\b(kill|murder|shoot|stab|attack|harm|hurt|assault|beat up|destroy|blow up|bomb|poison|strangle|choke|suffocate|rape|abuse)\b/i,
+  /\b(suicide|self.harm|cut myself|end my life|kill myself)\b/i,
+  /\b(weapon|gun|knife|explosive|grenade)\b/i,
+];
+
+function checkViolentContent(input: string): boolean {
+  return BLOCKED_PATTERNS.some((pattern) => pattern.test(input));
+}
+
 const PLANS = [
   {
     name: "Basic",
@@ -120,6 +131,8 @@ export default function Home() {
   const [noteStatus, setNoteStatus] = useState("");
   const [dailyUsage, setDailyUsage] = useState(0);
   const [hydrated, setHydrated] = useState(false);
+  const [disclaimerDismissed, setDisclaimerDismissed] = useState(false);
+  const [blockedWarning, setBlockedWarning] = useState(false);
 
   useEffect(() => {
     if (typeof window === "undefined" || !("serviceWorker" in navigator)) return;
@@ -303,7 +316,13 @@ export default function Home() {
       return;
     }
 
+    if (checkViolentContent(value)) {
+      setBlockedWarning(true);
+      return;
+    }
+
     setError("");
+    setBlockedWarning(false);
     setLoading(true);
     setResult(null);
     setNote("");
@@ -752,6 +771,24 @@ export default function Home() {
   return (
     <div className={`page ${dark ? "dark" : ""}`}>
       <div className="center">
+        {/* ── Disclaimer banner ── */}
+        {!disclaimerDismissed && (
+          <div className="disclaimerBanner" role="alert">
+            <div className="disclaimerContent">
+              <span className="disclaimerIcon" aria-hidden="true">⚠️</span>
+              <div>
+                <strong>For informational purposes only.</strong> RegretAI uses AI to simulate how decisions might feel over time. It is not a substitute for professional advice (financial, legal, medical, or psychological). Results are illustrative, not predictive. Do not use this app for decisions involving crisis situations or immediate danger — please contact a professional or emergency services instead.
+              </div>
+            </div>
+            <button
+              className="disclaimerDismiss"
+              aria-label="Dismiss disclaimer"
+              onClick={() => setDisclaimerDismissed(true)}
+            >
+              Got it
+            </button>
+          </div>
+        )}
         <header className="topbar">
           <div>
             <h1 className="title">
@@ -817,6 +854,9 @@ export default function Home() {
           </div>
         </header>
 
+        <div className="mainLayout">
+          {/* ── LEFT COLUMN: input + tips ── */}
+          <div className="inputColumn">
         <section className="inputCard">
           <div className="inputHeader">
             <div>
@@ -881,15 +921,68 @@ export default function Home() {
             </div>
           ) : null}
 
-          {error && <div className="status error">{error}</div>}
+          {blockedWarning && (
+            <div className="status error" role="alert">
+              <strong>🚫 This request can't be analyzed.</strong> RegretAI is designed for everyday life decisions — not requests involving violence, self-harm, or harm to others. If you or someone you know is in crisis, please contact the <a href="https://988lifeline.org" target="_blank" rel="noopener noreferrer" style={{color:"inherit"}}>988 Suicide &amp; Crisis Lifeline</a> or emergency services.
+            </div>
+          )}
+
+          {error && !blockedWarning && <div className="status error">{error}</div>}
         </section>
 
-        <section className="infoCard">
-          <h3>How this app works</h3>
-          <p>
-            RegretAI uses AI to help you think through outcomes and see what your decision may feel like over time. Use the history tools to compare past ideas and improve your decision process.
-          </p>
+        {/* ── Tips for better results ── */}
+        <section className="tipsCard">
+          <h3 className="sectionTitle">💡 Tips for a clearer analysis</h3>
+          <ul className="tipsList">
+            <li><strong>Be specific about the trade-off.</strong> Instead of "Should I move?", try "Should I move from Dallas to Austin for a $15k raise but leave my support network?"</li>
+            <li><strong>Include your time horizon.</strong> Mention whether this is urgent or long-term — it shapes the regret forecast significantly.</li>
+            <li><strong>Name what you value.</strong> Add context like "stability matters more to me than income" so the advice fits your priorities.</li>
+            <li><strong>State the alternative.</strong> Every decision has an option B. Include it: "Stay at my current job vs. take the offer."</li>
+          </ul>
         </section>
+          </div>{/* end inputColumn */}
+
+          {/* ── RIGHT COLUMN: result ── */}
+          <div className="resultColumn">
+            {result ? (
+              <section className="resultSection">
+                <div className="resultActions">
+                  <button className="primaryBtn" onClick={copyAnalysis}>Copy result</button>
+                  <button className="secondaryBtn" type="button" onClick={downloadAnalysis}>Download report</button>
+                  <button className="secondaryBtn" type="button" onClick={shareAnalysis}>Share</button>
+                  <button className="secondaryBtn" type="button" onClick={() => analyze(result.title)}>
+                    Re-run
+                  </button>
+                </div>
+                {copyStatus && <div className="status success">{copyStatus}</div>}
+                <div className="noteSection">
+                  <h3 className="sectionTitle">Personal note</h3>
+                  <TextInput
+                    className="noteTextarea"
+                    placeholder="Write a follow-up thought, reminder, or why this decision matters to you."
+                    value={note}
+                    setValue={setNote}
+                    rows={4}
+                  />
+                  <div className="row actionRow">
+                    <button className="primaryBtn" disabled={!result} onClick={saveNote}>
+                      Save note
+                    </button>
+                    {noteStatus && <span className="status success">{noteStatus}</span>}
+                  </div>
+                </div>
+                <ResultCard data={result} />
+              </section>
+            ) : (
+              <div className="resultPlaceholder">
+                <div className="resultPlaceholderInner">
+                  <span className="resultPlaceholderIcon" aria-hidden="true">🔮</span>
+                  <p>Your analysis will appear here once you describe a decision and click <strong>Analyze decision</strong>.</p>
+                </div>
+              </div>
+            )}
+          </div>{/* end resultColumn */}
+        </div>{/* end mainLayout */}
 
         {currentUserEmail && !currentUserPaid && (
          <section className="billingPromoCard">
@@ -950,37 +1043,6 @@ export default function Home() {
         {checkoutMessage && (
           <section className="status success checkoutMessage">
             {checkoutMessage}
-          </section>
-        )}
-
-        {result && (
-          <section className="resultSection">
-            <div className="resultActions">
-              <button className="primaryBtn" onClick={copyAnalysis}>Copy result</button>
-              <button className="secondaryBtn" type="button" onClick={downloadAnalysis}>Download report</button>
-              <button className="secondaryBtn" type="button" onClick={shareAnalysis}>Share</button>
-              <button className="secondaryBtn" type="button" onClick={() => analyze(result.title)}>
-                Re-run
-              </button>
-            </div>
-            {copyStatus && <div className="status success">{copyStatus}</div>}
-            <div className="noteSection">
-              <h3 className="sectionTitle">Personal note</h3>
-              <TextInput
-                className="noteTextarea"
-                placeholder="Write a follow-up thought, reminder, or why this decision matters to you."
-                value={note}
-                setValue={setNote}
-                rows={4}
-              />
-              <div className="row actionRow">
-                <button className="primaryBtn" disabled={!result} onClick={saveNote}>
-                  Save note
-                </button>
-                {noteStatus && <span className="status success">{noteStatus}</span>}
-              </div>
-            </div>
-            <ResultCard data={result} />
           </section>
         )}
 

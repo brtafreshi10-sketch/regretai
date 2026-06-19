@@ -1,5 +1,7 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
+  output: 'export',       // Tells Next.js to create a static 'out' folder for iOS
+  trailingSlash: true,    // Required for static routing inside the iOS app view
   reactStrictMode: true,
   images: {
     unoptimized: true,
